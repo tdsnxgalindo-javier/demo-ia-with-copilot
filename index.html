@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard de Oportunidades Comerciales</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            m365: { blue: '#0078D4', dark: '#106EBE', navy: '#002050', green: '#107C10', light: '#EFF6FC' }
+          },
+          fontFamily: { sans: ['"Segoe UI"', 'system-ui', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-12px) scale(.97); }
+      to   { opacity: 1; transform: none; }
+    }
+    @keyframes flash {
+      0%, 100% { background-color: transparent; }
+      30% { background-color: #dff6dd; }
+    }
+    .row-new { animation: slideIn .45s ease-out, flash 1.6s ease-out; }
+    .card-new { animation: slideIn .45s ease-out; box-shadow: 0 0 0 2px #107C10; }
+    @media (prefers-reduced-motion: reduce) { .row-new, .card-new { animation: none; } }
+  </style>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 min-h-screen">
+
+  <header class="bg-m365-navy text-white shadow">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded bg-m365-blue grid place-items-center font-bold">O</div>
+        <h1 class="text-xl font-semibold">Gestión de Oportunidades Comerciales</h1>
+      </div>
+      <span class="text-sm text-blue-200 hidden sm:block" id="today"></span>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <section class="bg-white border border-slate-200 rounded-lg p-4" aria-label="Conexión a SharePoint">
+      <div class="flex flex-wrap items-end gap-3">
+        <div class="w-full sm:w-auto sm:flex-1 min-w-0">
+          <label for="clientId" class="block text-sm font-medium mb-1">ID de aplicación de Microsoft Entra</label>
+          <input id="clientId" autocomplete="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" class="w-full rounded border border-slate-300 px-3 py-2" />
+        </div>
+        <button id="connectBtn" type="button" class="bg-m365-blue text-white rounded px-4 py-2 disabled:opacity-60">Conectar SharePoint</button>
+        <button id="refreshBtn" type="button" disabled class="border border-slate-300 rounded px-4 py-2 disabled:opacity-60">Actualizar</button>
+        <a href="https://m365x30064847.sharepoint.com/sites/demo-ia-with-copilot/Lists/Oportunidades" target="_blank" rel="noopener noreferrer" class="text-m365-blue underline text-sm py-2">Lista de SharePoint</a>
+      </div>
+      <p id="connectionStatus" role="status" class="text-sm text-slate-600 mt-2">Sin conexión</p>
+    </section>
+
+    <!-- KPIs -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-4" id="kpis"></section>
+
+    <div class="grid lg:grid-cols-3 gap-6">
+
+      <!-- Formulario -->
+      <section class="bg-white rounded-lg shadow-sm border border-slate-200 p-5 h-fit">
+        <h2 class="text-lg font-semibold text-m365-blue mb-4">Nueva oportunidad</h2>
+        <form id="form" class="space-y-4" novalidate>
+          <fieldset id="opportunityFields" disabled class="space-y-4">
+          <div>
+            <label for="cliente" class="block text-sm font-medium mb-1">Cliente</label>
+            <input id="cliente" required maxlength="80" class="w-full rounded border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-m365-blue" />
+          </div>
+          <div>
+            <label for="proyecto" class="block text-sm font-medium mb-1">Proyecto</label>
+            <input id="proyecto" required maxlength="120" class="w-full rounded border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-m365-blue" />
+          </div>
+          <div>
+            <label for="asignado" class="block text-sm font-medium mb-1">Asignado a</label>
+            <select id="asignado" required class="w-full rounded border border-slate-300 px-3 py-2 bg-white">
+              <option value="">Selecciona un miembro del sitio</option>
+            </select>
+          </div>
+          <div>
+            <label for="presupuesto" class="block text-sm font-medium mb-1">Presupuesto (USD)</label>
+            <input id="presupuesto" type="number" min="0" step="0.01" required class="w-full rounded border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-m365-blue" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="estado" class="block text-sm font-medium mb-1">Estado</label>
+              <select id="estado" class="w-full rounded border border-slate-300 px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-m365-blue">
+                <option>Prospecto</option>
+                <option>Negociación</option>
+                <option>Ganada</option>
+                <option>Perdida</option>
+              </select>
+            </div>
+            <div>
+              <label for="fecha" class="block text-sm font-medium mb-1">Fecha</label>
+              <input id="fecha" type="date" required class="w-full rounded border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-m365-blue" />
+            </div>
+          </div>
+          <p id="error" class="text-sm text-red-600 hidden"></p>
+          <p id="status" class="text-sm text-m365-green hidden"></p>
+          <button id="submitBtn" class="w-full bg-m365-blue hover:bg-m365-dark text-white font-medium py-2 rounded transition disabled:opacity-60">Registrar oportunidad</button>
+          </fieldset>
+        </form>
+      </section>
+
+      <!-- Listado -->
+      <section class="lg:col-span-2 min-w-0 bg-white rounded-lg shadow-sm border border-slate-200 p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 class="text-lg font-semibold text-m365-blue">Oportunidades</h2>
+          <div class="flex items-center gap-2">
+            <div id="filters" class="flex flex-wrap gap-2"></div>
+            <div class="inline-flex rounded border border-slate-300 overflow-hidden text-sm">
+              <button data-view="table" class="view-btn px-3 py-1">Tabla</button>
+              <button data-view="cards" class="view-btn px-3 py-1">Tarjetas</button>
+            </div>
+          </div>
+        </div>
+        <div id="list"></div>
+      </section>
+    </div>
+
+    <section id="documentPanel" class="border-t border-slate-300 pt-6 space-y-4" aria-labelledby="documentHeading">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <div class="min-w-0">
+          <h2 id="documentHeading" class="text-lg font-semibold text-m365-blue">Documentos de la oportunidad</h2>
+          <p id="documentSummary" class="text-sm text-slate-600 mt-1 break-words">Sin oportunidad seleccionada</p>
+        </div>
+        <a href="https://m365x30064847.sharepoint.com/sites/demo-ia-with-copilot/Lists/DocumentosOportunidades" target="_blank" rel="noopener noreferrer" class="text-m365-blue underline text-sm">Lista documental de SharePoint</a>
+      </div>
+      <p class="text-sm text-slate-600">El responsable se hereda de la oportunidad. Cámbialo en el listado de oportunidades. Actualizar sincroniza también los cambios hechos en SharePoint; no modifica el contenido de los archivos.</p>
+      <div class="flex items-end gap-3">
+        <div class="flex-1 min-w-0">
+          <label for="documentOpportunity" class="block text-sm font-medium mb-1">Oportunidad</label>
+          <select id="documentOpportunity" disabled class="w-full min-w-0 rounded border border-slate-300 px-3 py-2 bg-white"></select>
+        </div>
+        <button id="refreshDocuments" type="button" disabled title="Actualizar documentos" aria-label="Actualizar documentos" class="w-10 h-10 shrink-0 border border-slate-300 rounded grid place-items-center disabled:opacity-50"><i data-lucide="refresh-cw" class="w-4 h-4" aria-hidden="true"></i></button>
+      </div>
+      <form id="documentUploadForm">
+        <fieldset id="documentUploadFields" disabled class="flex flex-wrap items-end gap-3 min-w-0 w-full">
+          <div class="min-w-0 w-full sm:w-auto sm:flex-1">
+            <label for="documentFile" class="block text-sm font-medium mb-1">Archivo <span class="font-normal text-slate-500">(máximo 20 MB)</span></label>
+            <input id="documentFile" type="file" required class="block w-full min-w-0 text-sm rounded border border-slate-300 bg-white file:mr-3 file:border-0 file:border-r file:border-slate-300 file:bg-slate-100 file:px-3 file:py-2" />
+          </div>
+          <button type="submit" class="inline-flex items-center gap-2 rounded bg-m365-blue text-white px-4 py-2 disabled:opacity-50"><i data-lucide="paperclip" class="w-4 h-4" aria-hidden="true"></i>Adjuntar documento</button>
+        </fieldset>
+      </form>
+      <p id="documentMessage" role="status" aria-live="polite" class="text-sm hidden"></p>
+      <div class="grid xl:grid-cols-[minmax(0,3fr)_minmax(260px,2fr)] gap-6 items-start">
+        <div id="documentList" class="min-w-0"></div>
+        <form id="documentReviewForm" class="min-w-0 border-t xl:border-t-0 xl:border-l border-slate-200 pt-4 xl:pt-0 xl:pl-5 hidden">
+          <fieldset id="documentReviewFields" disabled class="space-y-3 min-w-0">
+            <legend class="text-base font-semibold mb-2">Revisión del documento</legend>
+            <p id="reviewDocumentName" class="text-sm font-medium break-words"></p>
+            <p id="reviewDocumentAudit" class="text-xs text-slate-500 break-words"></p>
+            <div>
+              <label for="documentState" class="block text-sm font-medium mb-1">Estado de validación</label>
+              <select id="documentState" class="w-full rounded border border-slate-300 px-3 py-2 bg-white">
+                <option>Pendiente</option><option>Validado</option><option>Rechazado</option>
+              </select>
+            </div>
+            <div>
+              <label for="documentNotes" class="block text-sm font-medium mb-1">Observaciones</label>
+              <textarea id="documentNotes" rows="3" maxlength="2000" class="block w-full rounded border border-slate-300 px-3 py-2"></textarea>
+            </div>
+            <button type="submit" class="inline-flex items-center gap-2 rounded bg-m365-green text-white px-4 py-2 disabled:opacity-50"><i data-lucide="check" class="w-4 h-4" aria-hidden="true"></i>Guardar validación</button>
+          </fieldset>
+        </form>
+      </div>
+    </section>
+  </main>
+
+<script>
+  const ESTADOS = ['Prospecto', 'Negociación', 'Ganada', 'Perdida'];
+  const BADGE = {
+    'Prospecto': 'bg-slate-100 text-slate-700',
+    'Negociación': 'bg-blue-100 text-m365-dark',
+    'Ganada': 'bg-green-100 text-m365-green',
+    'Perdida': 'bg-red-100 text-red-700'
+  };
+  const fmt = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  const $ = id => document.getElementById(id);
+
+  let data = [];
+  let filtro = 'Todos';
+  let vista = localStorage.getItem('vista') || 'table';
+  let newId = null;
+  const CONFIG = {
+    SITE_URL: 'https://m365x30064847.sharepoint.com/sites/demo-ia-with-copilot',
+    TENANT_ID: '29c3ef0e-00a3-4611-b0ee-f5b3d3fffec3',
+    CLIENT_ID: '41a9e13b-df67-49a3-92a0-ad5d2deae89d',
+    LIST_TITLE: 'Oportunidades',
+    DOCUMENTS_LIST_TITLE: 'DocumentosOportunidades'
+  };
+  const siteOrigin = new URL(CONFIG.SITE_URL).origin;
+  const sameOrigin = location.origin === siteOrigin;
+  const listPath = `web/lists/getbytitle('${CONFIG.LIST_TITLE}')/items`;
+  const documentsPath = `web/lists/getbytitle('${CONFIG.DOCUMENTS_LIST_TITLE}')/items`;
+  const DOCUMENT_STATES = ['Pendiente', 'Validado', 'Rechazado'];
+  const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
+  const scopes = [`${siteOrigin}/AllSites.Write`];
+  let auth = null;
+  let connected = false;
+  let busy = false;
+  let digest = null;
+  let digestExpires = 0;
+  let selectedOpportunityId = null;
+  let opportunityDocuments = [];
+  let selectedDocumentId = null;
+  let documentsLoaded = false;
+  let siteMembers = [];
+
+  const memberKey = login => (login || '').split('|').pop().toLowerCase();
+
+  async function readAll(path) {
+    const records = [];
+    while (path) {
+      const result = await sharePointRequest(path);
+      records.push(...result.value);
+      path = result['odata.nextLink'] || result['@odata.nextLink'];
+    }
+    return records;
+  }
+
+  async function fetchSiteMembers() {
+    const principals = await readAll('web/AssociatedMemberGroup/Users?$select=Id,Title,LoginName,PrincipalType&$top=100');
+    const members = new Map();
+    for (const principal of principals) {
+      if (principal.PrincipalType === 1) {
+        members.set(memberKey(principal.LoginName), { login: principal.LoginName, name: principal.Title });
+      } else {
+        const group = principal.LoginName.match(/^c:0o\.c\|federateddirectoryclaimprovider\|([0-9a-f-]{36})$/i);
+        if (!group) throw new Error(`No se puede enumerar el grupo de miembros "${principal.Title}". No se mostrarán usuarios ajenos al sitio.`);
+        const users = await readAll(`SP.Directory.DirectorySession/Group('${group[1]}')/Members?$select=Id,PrincipalName,DisplayName,Mail&$top=100`);
+        for (const user of users) {
+          if (!user.principalName) throw new Error('Un miembro del sitio no tiene una cuenta de usuario válida.');
+          members.set(memberKey(user.principalName), { login: user.principalName, name: user.displayName });
+        }
+      }
+    }
+    if (!members.size) throw new Error('El grupo de miembros del sitio no contiene personas asignables.');
+    siteMembers = [...members.values()].sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    const previous = $('asignado').value;
+    $('asignado').replaceChildren(new Option('Selecciona un miembro del sitio', ''),
+      ...siteMembers.map(member => new Option(member.name, memberKey(member.login))));
+    $('asignado').value = previous;
+  }
+
+  async function resolveAssignee(login) {
+    await fetchSiteMembers();
+    const member = siteMembers.find(item => memberKey(item.login) === memberKey(login));
+    if (!member) throw new Error('Selecciona una persona que pertenezca actualmente al grupo de miembros del sitio.');
+    const user = await sharePointRequest('web/ensureuser', {
+      method: 'POST', body: JSON.stringify({ logonName: member.login })
+    });
+    return user.Id;
+  }
+
+  async function syncDocumentAssignments() {
+    const opportunities = new Map(data.map(item => [item.id, item]));
+    const documents = await readAll(`${documentsPath}?$select=Id,OportunidadId,AsignadoAId&$top=100`);
+    let updated = 0;
+    for (const record of documents) {
+      const opportunity = opportunities.get(record.OportunidadId);
+      if (!opportunity) throw new Error(`No se encontró la oportunidad del documento #${record.Id}. No se modificó su responsable.`);
+      const assigneeId = opportunity.asignadoId;
+      if ((record.AsignadoAId || null) === assigneeId) continue;
+      try {
+        await mutateDocument({ ...record, etag: record['odata.etag'] || record['@odata.etag'] }, 'MERGE', { AsignadoAId: assigneeId });
+        updated++;
+      } catch (error) {
+        throw new Error(`Sincronización incompleta: ${updated} documentos actualizados; no se pudo sincronizar el documento #${record.Id}. Pulsa Actualizar para reintentar. ${error.message}`);
+      }
+    }
+  }
+
+  function setConnection(message, failed = false) {
+    $('connectionStatus').textContent = message;
+    $('connectionStatus').className = `text-sm mt-2 ${failed ? 'text-red-600' : 'text-slate-600'}`;
+  }
+
+  function updateControls() {
+    $('opportunityFields').disabled = !connected || busy;
+    $('connectBtn').disabled = busy;
+    $('clientId').disabled = connected || busy;
+    $('refreshBtn').disabled = !connected || busy;
+    $('documentOpportunity').disabled = !connected || busy;
+    $('refreshDocuments').disabled = !connected || busy || !selectedOpportunityId;
+    $('documentUploadFields').disabled = !connected || busy || !selectedOpportunityId;
+    const selectedDocument = opportunityDocuments.find(record => record.Id === selectedDocumentId);
+    $('documentReviewFields').disabled = !connected || busy || !selectedDocument?.AttachmentFiles?.length;
+    document.querySelectorAll('.chg, [data-assignee], [data-del], [data-documents], [data-doc-review], [data-doc-delete], [data-doc-download]').forEach(control => {
+      control.disabled = !connected || busy || (control.hasAttribute('data-doc-download') && !opportunityDocuments.find(record => record.Id === Number(control.dataset.docDownload))?.AttachmentFiles?.length);
+    });
+  }
+
+  async function loadAuthentication() {
+    if (globalThis.msal) return;
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@azure/msal-browser@4.27.0/lib/msal-browser.min.js';
+      script.onload = resolve;
+      script.onerror = () => { script.remove(); reject(new Error('No se pudo cargar Microsoft Authentication Library.')); };
+      document.head.appendChild(script);
+    });
+  }
+
+  async function initializeAuthentication(clientId) {
+    if (auth && auth.getConfiguration().auth.clientId === clientId) return;
+    await loadAuthentication();
+    const client = new msal.PublicClientApplication({
+      auth: {
+        clientId, authority: `https://login.microsoftonline.com/${CONFIG.TENANT_ID}`,
+        redirectUri: `${location.origin}${location.pathname}`
+      },
+      cache: { cacheLocation: 'sessionStorage' }
+    });
+    await client.initialize();
+    auth = client;
+  }
+
+  async function accessToken() {
+    try {
+      const result = await auth.acquireTokenSilent({ scopes, account: auth.getActiveAccount() });
+      return result.accessToken;
+    } catch (error) {
+      if (error instanceof msal.InteractionRequiredAuthError) {
+        connected = false;
+        throw new Error('La sesión requiere autenticación. Pulsa Conectar SharePoint de nuevo.');
+      }
+      throw error;
+    }
+  }
+
+  async function sharePointRequest(path, options = {}) {
+    const url = new URL(path.startsWith('https://') ? path : `${CONFIG.SITE_URL}/_api/${path}`);
+    if (url.origin !== siteOrigin || !url.pathname.startsWith(`${new URL(CONFIG.SITE_URL).pathname}/_api/`)) {
+      throw new Error('La respuesta contiene una URL ajena a la API del sitio.');
+    }
+    const headers = { Accept: 'application/json;odata=minimalmetadata', ...options.headers };
+    if (!sameOrigin) headers.Authorization = `Bearer ${await accessToken()}`;
+    if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json;odata=nometadata';
+    if (sameOrigin && options.method === 'POST' && path !== 'contextinfo') {
+      if (!digest || Date.now() >= digestExpires) {
+        const context = await sharePointRequest('contextinfo', { method: 'POST' });
+        digest = context.FormDigestValue;
+        digestExpires = Date.now() + Math.max(0, context.FormDigestTimeoutSeconds - 60) * 1000;
+      }
+      headers['X-RequestDigest'] = digest;
+    }
+    const response = await fetch(url.href, {
+      ...options, headers, credentials: sameOrigin ? 'same-origin' : 'omit'
+    });
+    if (!response.ok) {
+      if (response.status === 401) connected = false;
+      const detail = await response.json().catch(() => null);
+      const message = detail?.['odata.error']?.message?.value || detail?.error?.message?.value;
+      const guidance = response.status === 404 ? 'No se encontró la lista, el registro o el archivo solicitado. Actualiza la vista.' :
+        response.status === 403 ? 'Comprueba los permisos del usuario y de la aplicación.' :
+        response.status === 412 ? 'Otro usuario modificó el registro. Actualiza antes de reintentar.' : '';
+      throw new Error(`SharePoint (${response.status}). ${guidance} ${message || ''}`.trim());
+    }
+    if (response.status === 204 || response.headers.get('content-length') === '0') return null;
+    if (options.responseType === 'blob') return response.blob();
+    return response.json();
+  }
+
+  function validateDocumentFile(file) {
+    if (!file || !file.size) throw new Error('Selecciona un documento que no esté vacío.');
+    if (file.size > MAX_DOCUMENT_BYTES) throw new Error('El documento supera el límite de 20 MB.');
+    if (file.name.length > 180 || /["*:<>?\/\\|\u0000-\u001f]/.test(file.name) || /^[. ]|[. ]$/.test(file.name)) {
+      throw new Error('El nombre del archivo no es válido para SharePoint o supera 180 caracteres.');
+    }
+  }
+
+  const encodeODataFileName = name => encodeURIComponent(name.replace(/'/g, "''")).replace(/'/g, '%27');
+
+  async function fetchOpportunityDocuments(opportunityId) {
+    if (!Number.isSafeInteger(opportunityId) || opportunityId <= 0) throw new Error('Selecciona una oportunidad válida.');
+    const records = [];
+    let next = `${documentsPath}?$select=Id,Title,OportunidadId,AsignadoAId,AsignadoA/Title,EstadoValidacion,Observaciones,ValidadoPor,FechaValidacion,Created,AttachmentFiles&$expand=AttachmentFiles,AsignadoA&$filter=OportunidadId eq ${opportunityId}&$orderby=Id desc&$top=100`;
+    while (next) {
+      const result = await sharePointRequest(next);
+      records.push(...result.value);
+      next = result['odata.nextLink'] || result['@odata.nextLink'];
+    }
+    return records.map(record => ({ ...record, etag: record['odata.etag'] || record['@odata.etag'] }));
+  }
+
+  async function uploadOpportunityDocument(opportunityId, file) {
+    if (!Number.isSafeInteger(opportunityId) || opportunityId <= 0) throw new Error('Selecciona una oportunidad válida.');
+    validateDocumentFile(file);
+    const bytes = await file.arrayBuffer();
+    await fetchData();
+    const opportunity = data.find(item => item.id === opportunityId);
+    if (!opportunity) throw new Error('La oportunidad ya no existe. Actualiza el listado.');
+    const created = await sharePointRequest(documentsPath, {
+      method: 'POST',
+      body: JSON.stringify({ Title: file.name, OportunidadId: opportunityId, AsignadoAId: opportunity.asignadoId, EstadoValidacion: 'Pendiente' })
+    });
+    try {
+      await sharePointRequest(`${documentsPath}(${created.Id})/AttachmentFiles/add(FileName='${encodeODataFileName(file.name)}')`, {
+        method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: bytes
+      });
+    } catch (error) {
+      try {
+        await sharePointRequest(`${documentsPath}(${created.Id})`, {
+          method: 'POST', headers: { 'X-HTTP-Method': 'DELETE', 'IF-MATCH': '*' }
+        });
+      } catch {
+        throw new Error(`No se pudo confirmar la carga ni limpiar el registro documental ${created.Id}. Actualiza y verifica ese registro antes de reintentar.`);
+      }
+      throw new Error(`No se adjuntó el archivo y se retiró su registro temporal: ${error.message}`);
+    }
+    return created.Id;
+  }
+
+  async function mutateDocument(record, method, fields) {
+    if (!record.etag) throw new Error('Actualiza los documentos antes de modificar el registro.');
+    return sharePointRequest(`${documentsPath}(${record.Id})`, {
+      method: 'POST', headers: { 'X-HTTP-Method': method, 'IF-MATCH': record.etag },
+      ...(fields ? { body: JSON.stringify(fields) } : {})
+    });
+  }
+
+  async function validateOpportunityDocument(record, state, observations) {
+    if (!DOCUMENT_STATES.includes(state)) throw new Error('Selecciona un estado de validación válido.');
+    if (!record.AttachmentFiles?.length) throw new Error('Este registro no tiene un archivo adjunto. Elimínalo y vuelve a cargar el documento.');
+    const notes = observations.trim();
+    if (notes.length > 2000) throw new Error('Las observaciones no pueden superar 2000 caracteres.');
+    if (state === 'Rechazado' && !notes) throw new Error('Indica el motivo del rechazo en las observaciones.');
+    let reviewer = null;
+    if (state !== 'Pendiente') {
+      reviewer = sameOrigin ? (await sharePointRequest('web/currentuser?$select=Email,Title')).Email : auth.getActiveAccount()?.username;
+      if (!reviewer) throw new Error('No se pudo identificar al usuario que valida el documento.');
+    }
+    return mutateDocument(record, 'MERGE', {
+      EstadoValidacion: state, Observaciones: notes, ValidadoPor: reviewer,
+      FechaValidacion: state === 'Pendiente' ? null : new Date().toISOString()
+    });
+  }
+
+  async function downloadOpportunityDocument(record) {
+    const attachment = record.AttachmentFiles?.[0];
+    if (!attachment) throw new Error('El registro no tiene un archivo adjunto.');
+    const blob = await sharePointRequest(`${documentsPath}(${record.Id})/AttachmentFiles/getByFileName('${encodeODataFileName(attachment.FileName)}')/$value`, { responseType: 'blob' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = attachment.FileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  function setDocumentMessage(message, failed = false) {
+    $('documentMessage').textContent = message;
+    $('documentMessage').className = `text-sm ${failed ? 'text-red-600' : 'text-m365-green'} ${message ? '' : 'hidden'}`;
+    $('documentMessage').setAttribute('role', failed ? 'alert' : 'status');
+  }
+
+  function syncDocumentOpportunities() {
+    if (selectedOpportunityId && !data.some(opportunity => opportunity.id === selectedOpportunityId)) {
+      selectedOpportunityId = null;
+      selectedDocumentId = null;
+      opportunityDocuments = [];
+      documentsLoaded = false;
+      $('documentFile').value = '';
+      setDocumentMessage('');
+      renderDocuments();
+    }
+    $('documentOpportunity').replaceChildren(new Option('Selecciona una oportunidad', ''),
+      ...data.map(opportunity => new Option(`#${opportunity.id} · ${opportunity.cliente} · ${opportunity.proyecto}`, String(opportunity.id))));
+    $('documentOpportunity').value = selectedOpportunityId ? String(selectedOpportunityId) : '';
+  }
+
+  function renderDocuments() {
+    const records = opportunityDocuments;
+    const opportunity = data.find(item => item.id === selectedOpportunityId);
+    const pending = records.filter(record => record.EstadoValidacion === 'Pendiente').length;
+    $('documentSummary').textContent = opportunity ?
+      `${opportunity.cliente} · ${opportunity.proyecto} · ${documentsLoaded ? `${records.length} documentos · ${pending} ${pending === 1 ? 'pendiente' : 'pendientes'}` : 'Documentos sin cargar'}` : 'Sin oportunidad seleccionada';
+    if (!selectedOpportunityId) {
+      $('documentList').innerHTML = '<p class="text-sm text-slate-500 py-6">Sin oportunidad seleccionada.</p>';
+    } else if (!documentsLoaded) {
+      $('documentList').innerHTML = '<p class="text-sm text-slate-500 py-6">Documentos sin cargar.</p>';
+    } else if (!records.length) {
+      $('documentList').innerHTML = '<p class="text-sm text-slate-500 py-6">Esta oportunidad no tiene documentos.</p>';
+    } else {
+      $('documentList').innerHTML = `<div class="overflow-x-auto"><table class="w-full text-sm text-left">
+        <thead class="bg-m365-light"><tr><th class="p-2 font-semibold">Documento</th><th class="p-2 font-semibold">Asignado a</th><th class="p-2 font-semibold">Validación</th><th class="p-2 font-semibold text-right">Acciones</th></tr></thead>
+        <tbody class="divide-y divide-slate-200">${records.map(record => {
+          const color = record.EstadoValidacion === 'Validado' ? 'text-m365-green bg-green-50' : record.EstadoValidacion === 'Rechazado' ? 'text-red-700 bg-red-50' : 'text-amber-800 bg-amber-50';
+          return `<tr class="${record.Id === selectedDocumentId ? 'bg-m365-light' : ''}">
+            <td class="p-2 align-top"><button type="button" data-doc-review="${record.Id}" aria-pressed="${record.Id === selectedDocumentId}" class="text-m365-blue text-left underline break-all">${esc(record.Title)}</button>
+              <p class="text-xs text-slate-500 mt-1">${record.AttachmentFiles?.length ? 'Archivo adjunto' : 'Carga incompleta'}</p></td>
+            <td class="p-2 align-top">${esc(record.AsignadoA?.Title || 'Sin asignar')}</td>
+            <td class="p-2 align-top"><span class="inline-block rounded px-2 py-1 text-xs ${color}">${esc(record.EstadoValidacion || 'Pendiente')}</span></td>
+            <td class="p-2 align-top"><div class="flex justify-end gap-1">
+              <button type="button" data-doc-download="${record.Id}" aria-label="Descargar documento" title="Descargar documento" class="w-9 h-9 shrink-0 grid place-items-center rounded border border-slate-300 disabled:opacity-40"><i data-lucide="download" class="w-4 h-4" aria-hidden="true"></i></button>
+              <button type="button" data-doc-delete="${record.Id}" aria-label="Eliminar documento" title="Eliminar documento" class="w-9 h-9 shrink-0 grid place-items-center rounded border border-slate-300 text-red-600 disabled:opacity-40"><i data-lucide="trash-2" class="w-4 h-4" aria-hidden="true"></i></button>
+            </div></td></tr>`;
+        }).join('')}</tbody></table></div>`;
+    }
+    const selected = records.find(record => record.Id === selectedDocumentId);
+    $('documentReviewForm').classList.toggle('hidden', !selected);
+    if (selected) {
+      $('reviewDocumentName').textContent = selected.Title;
+      $('reviewDocumentAudit').textContent = selected.ValidadoPor ? `${selected.ValidadoPor} · ${selected.FechaValidacion ? new Date(selected.FechaValidacion).toLocaleString('es-ES') : ''}` : 'Sin revisión registrada';
+      $('documentState').value = selected.EstadoValidacion || 'Pendiente';
+      $('documentNotes').value = selected.Observaciones || '';
+    }
+    globalThis.lucide?.createIcons();
+    updateControls();
+  }
+
+  async function loadDocuments() {
+    if (!selectedOpportunityId) return;
+    $('documentList').setAttribute('aria-busy', 'true');
+    try {
+      opportunityDocuments = await fetchOpportunityDocuments(selectedOpportunityId);
+      documentsLoaded = true;
+      if (!opportunityDocuments.some(record => record.Id === selectedDocumentId)) selectedDocumentId = null;
+      renderDocuments();
+    } catch (error) {
+      opportunityDocuments = [];
+      selectedDocumentId = null;
+      documentsLoaded = false;
+      renderDocuments();
+      throw error;
+    } finally {
+      $('documentList').removeAttribute('aria-busy');
+    }
+  }
+
+  async function runDocumentOperation(operation) {
+    if (busy || !connected) return;
+    busy = true;
+    updateControls();
+    setDocumentMessage('');
+    try {
+      await operation();
+    } catch (error) {
+      setDocumentMessage(error.message, true);
+    } finally {
+      busy = false;
+      updateControls();
+    }
+  }
+
+  async function selectDocumentOpportunity(opportunityId) {
+    if (!data.some(opportunity => opportunity.id === opportunityId)) opportunityId = null;
+    selectedOpportunityId = opportunityId;
+    selectedDocumentId = null;
+    opportunityDocuments = [];
+    documentsLoaded = false;
+    $('documentFile').value = '';
+    syncDocumentOpportunities();
+    renderDocuments();
+    if (opportunityId) await loadDocuments();
+  }
+
+  async function createOpportunity(opportunity) {
+    return sharePointRequest(listPath, {
+      method: 'POST',
+      body: JSON.stringify({
+        Title: opportunity.proyecto, Cliente: opportunity.cliente,
+        Presupuesto: opportunity.presupuesto, Estado: opportunity.estado,
+        AsignadoAId: opportunity.asignadoId,
+        Fecha: `${opportunity.fecha}T00:00:00Z`
+      })
+    });
+  }
+
+  async function mutateOpportunity(opportunity, method, fields) {
+    if (!opportunity.etag) throw new Error('Actualiza la lista antes de modificar el registro.');
+    return sharePointRequest(`${listPath}(${opportunity.id})`, {
+      method: 'POST',
+      headers: { 'X-HTTP-Method': method, 'IF-MATCH': opportunity.etag },
+      ...(fields ? { body: JSON.stringify(fields) } : {})
+    });
+  }
+
+  async function fetchData() {
+    $('list').setAttribute('aria-busy', 'true');
+    try {
+      const items = [];
+      let next = `${listPath}?$select=Id,Title,Cliente,Presupuesto,Estado,Fecha,AsignadoAId,AsignadoA/Title,AsignadoA/Name&$expand=AsignadoA&$orderby=Id desc&$top=500`;
+      while (next) {
+        const result = await sharePointRequest(next);
+        items.push(...result.value);
+        next = result['odata.nextLink'] || result['@odata.nextLink'];
+      }
+      data = items.map(item => ({
+        id: item.Id, proyecto: item.Title || '', cliente: item.Cliente || '',
+        presupuesto: Number(item.Presupuesto) || 0, estado: item.Estado || '',
+        asignadoId: item.AsignadoAId || null, asignadoNombre: item.AsignadoA?.Title || '',
+        asignadoLogin: item.AsignadoA?.Name || '',
+        fecha: (item.Fecha || '').slice(0, 10), etag: item['odata.etag'] || item['@odata.etag']
+      }));
+      render();
+      if (selectedOpportunityId) {
+        opportunityDocuments = [];
+        documentsLoaded = false;
+        renderDocuments();
+      }
+      await syncDocumentAssignments();
+      if (selectedOpportunityId) await loadDocuments();
+    } finally {
+      $('list').removeAttribute('aria-busy');
+    }
+  }
+
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const badge = e => `<span class="px-2 py-0.5 rounded-full text-xs font-medium ${BADGE[e] || BADGE.Prospecto}">${esc(e)}</span>`;
+
+  function renderKpis() {
+    const total = data.reduce((s, o) => s + o.presupuesto, 0);
+    const ganado = data.filter(o => o.estado === 'Ganada').reduce((s, o) => s + o.presupuesto, 0);
+    const abiertas = data.filter(o => ['Prospecto', 'Negociación'].includes(o.estado)).length;
+    const cerradas = data.filter(o => ['Ganada', 'Perdida'].includes(o.estado));
+    const tasa = cerradas.length ? Math.round(cerradas.filter(o => o.estado === 'Ganada').length / cerradas.length * 100) : 0;
+    const items = [
+      ['Pipeline total', fmt.format(total), 'text-m365-blue'],
+      ['Ingresos ganados', fmt.format(ganado), 'text-m365-green'],
+      ['Abiertas', abiertas, 'text-m365-blue'],
+      ['Tasa de éxito', tasa + '%', 'text-m365-green']
+    ];
+    $('kpis').innerHTML = items.map(([l, v, c]) => `
+      <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 border-l-4 ${c.includes('green') ? 'border-l-m365-green' : 'border-l-m365-blue'}">
+        <p class="text-xs uppercase tracking-wide text-slate-500">${l}</p>
+        <p class="text-2xl font-semibold ${c}">${v}</p>
+      </div>`).join('');
+  }
+
+  function renderFilters() {
+    $('filters').innerHTML = ['Todos', ...ESTADOS].map(e => {
+      const n = e === 'Todos' ? data.length : data.filter(o => o.estado === e).length;
+      const active = e === filtro;
+      return `<button data-f="${e}" class="px-3 py-1 rounded-full text-sm border transition ${active ? 'bg-m365-blue text-white border-m365-blue' : 'bg-white text-slate-600 border-slate-300 hover:bg-m365-light'}">${e} (${n})</button>`;
+    }).join('');
+    document.querySelectorAll('.view-btn').forEach(b => {
+      const on = b.dataset.view === vista;
+      b.className = `view-btn px-3 py-1 ${on ? 'bg-m365-blue text-white' : 'bg-white text-slate-600 hover:bg-m365-light'}`;
+    });
+  }
+
+  function stateSelect(o) {
+    return `<select data-id="${o.id}" class="chg text-xs border border-slate-300 rounded px-1 py-1 bg-white">
+      ${ESTADOS.map(e => `<option ${e === o.estado ? 'selected' : ''}>${e}</option>`).join('')}</select>`;
+  }
+  function assigneeSelect(opportunity) {
+    const key = memberKey(opportunity.asignadoLogin);
+    const available = siteMembers.some(member => memberKey(member.login) === key);
+    return `<select data-assignee="${opportunity.id}" aria-label="Asignado a: ${esc(opportunity.proyecto)}" class="w-full min-w-36 text-xs border border-slate-300 rounded px-1 py-1 bg-white">
+      <option value="" disabled ${!opportunity.asignadoId ? 'selected' : ''}>Sin asignar</option>
+      ${opportunity.asignadoId && !available ? `<option value="${esc(key)}" selected disabled>${esc(opportunity.asignadoNombre)} (ya no es miembro)</option>` : ''}
+      ${siteMembers.map(member => `<option value="${esc(memberKey(member.login))}" ${memberKey(member.login) === key ? 'selected' : ''}>${esc(member.name)}</option>`).join('')}</select>`;
+  }
+  const delBtn = o => `<button data-del="${o.id}" class="text-red-600 hover:underline text-xs">Eliminar</button>`;
+  const documentsBtn = opportunity => `<button type="button" data-documents="${opportunity.id}" class="inline-flex items-center gap-1 text-m365-blue text-xs underline"><i data-lucide="paperclip" class="w-3 h-3" aria-hidden="true"></i>Documentos</button>`;
+
+  function renderList() {
+    if (!connected) {
+      $('list').innerHTML = '<p class="text-center text-slate-500 py-10">Sin conexión a SharePoint.</p>';
+      return;
+    }
+    const rows = data.filter(o => filtro === 'Todos' || o.estado === filtro)
+      .sort((a, b) => b.fecha.localeCompare(a.fecha));
+    if (!rows.length) {
+      $('list').innerHTML = '<p class="text-center text-slate-500 py-10">No hay oportunidades en esta categoría.</p>';
+      return;
+    }
+    if (vista === 'cards') {
+      $('list').innerHTML = `<div class="grid sm:grid-cols-2 gap-4">${rows.map(o => `
+        <article class="${o.id === newId ? 'card-new ' : ''}border border-slate-200 rounded-lg p-4 hover:shadow-md transition border-t-4 ${o.estado === 'Ganada' ? 'border-t-m365-green' : 'border-t-m365-blue'}">
+          <div class="flex justify-between items-start gap-2">
+            <h3 class="font-semibold">${esc(o.cliente)}</h3>${badge(o.estado)}
+          </div>
+          <p class="text-sm text-slate-600 mt-1">${esc(o.proyecto)}</p>
+          <p class="text-xl font-semibold text-m365-blue mt-3">${fmt.format(o.presupuesto)}</p>
+          <p class="text-xs text-slate-500">${esc(o.fecha)}</p>
+          <div class="mt-3"><span class="text-xs text-slate-500">Asignado a</span>${assigneeSelect(o)}</div>
+          <div class="flex justify-between items-center mt-3">${stateSelect(o)}${delBtn(o)}</div>
+          <div class="mt-3">${documentsBtn(o)}</div>
+        </article>`).join('')}</div>`;
+    } else {
+      $('list').innerHTML = `<div class="overflow-x-auto"><table class="w-full text-sm text-left">
+        <thead class="bg-m365-light text-m365-navy"><tr>
+          ${['Cliente', 'Proyecto', 'Asignado a', 'Presupuesto', 'Estado', 'Fecha', ''].map(h => `<th class="px-3 py-2 font-semibold">${h}</th>`).join('')}
+        </tr></thead>
+        <tbody class="divide-y divide-slate-100">${rows.map(o => `
+          <tr class="hover:bg-slate-50 ${o.id === newId ? 'row-new' : ''}">
+            <td class="px-3 py-2 font-medium">${esc(o.cliente)}</td>
+            <td class="px-3 py-2">${esc(o.proyecto)}</td>
+            <td class="px-3 py-2">${assigneeSelect(o)}</td>
+            <td class="px-3 py-2">${fmt.format(o.presupuesto)}</td>
+            <td class="px-3 py-2 space-y-1">${badge(o.estado)}<div>${stateSelect(o)}</div></td>
+            <td class="px-3 py-2 whitespace-nowrap">${esc(o.fecha)}</td>
+            <td class="px-3 py-2"><div class="flex flex-col items-start gap-2">${documentsBtn(o)}${delBtn(o)}</div></td>
+          </tr>`).join('')}</tbody></table></div>`;
+    }
+  }
+
+  function render() { renderKpis(); renderFilters(); renderList(); syncDocumentOpportunities(); globalThis.lucide?.createIcons(); updateControls(); }
+
+  async function runOperation(operation) {
+    if (busy) return;
+    busy = true;
+    updateControls();
+    try {
+      await operation();
+    } catch (error) {
+      setConnection(error.message, true);
+    } finally {
+      busy = false;
+      updateControls();
+    }
+  }
+
+  async function finishConnection(result) {
+    if (result) auth.setActiveAccount(result.account);
+    connected = true;
+    try {
+      await fetchSiteMembers();
+      await fetchData();
+      setConnection(`Conectado a SharePoint · ${CONFIG.LIST_TITLE} · ${data.length} registros`);
+    } catch (error) {
+      connected = false;
+      render();
+      throw error;
+    }
+  }
+
+  $('clientId').value = localStorage.getItem('sharepointClientId') || CONFIG.CLIENT_ID;
+  $('connectBtn').addEventListener('click', () => runOperation(async () => {
+    connected = false;
+    data = [];
+    render();
+    if (!sameOrigin) {
+      if (!['http:', 'https:'].includes(location.protocol)) {
+        throw new Error('Abre el dashboard desde http://localhost:3000, no como archivo local.');
+      }
+      const clientId = $('clientId').value.trim();
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId)) {
+        throw new Error('Ingresa el ID de una aplicación de Microsoft Entra configurada para este dashboard.');
+      }
+      await initializeAuthentication(clientId);
+      await auth.handleRedirectPromise();
+      localStorage.setItem('sharepointClientId', clientId);
+      let result;
+      try {
+        result = await auth.loginPopup({ scopes, prompt: 'select_account' });
+      } catch (error) {
+        if (['popup_window_error', 'empty_window_error'].includes(error.errorCode)) {
+          setConnection('Abriendo el inicio de sesión de Microsoft...');
+          await auth.loginRedirect({ scopes, prompt: 'select_account' });
+          return;
+        }
+        throw error;
+      }
+      auth.setActiveAccount(result.account);
+    }
+    await finishConnection();
+  }));
+  $('refreshBtn').addEventListener('click', () => runOperation(async () => {
+    await fetchSiteMembers();
+    await fetchData();
+    setConnection(`Lista actualizada · ${data.length} registros`);
+  }));
+
+  $('documentOpportunity').addEventListener('change', event => runDocumentOperation(() => selectDocumentOpportunity(Number(event.target.value))));
+  $('refreshDocuments').addEventListener('click', () => runDocumentOperation(async () => {
+    await fetchSiteMembers();
+    await fetchData();
+    setDocumentMessage('Documentos actualizados desde SharePoint.');
+  }));
+
+  $('documentUploadForm').addEventListener('submit', event => {
+    event.preventDefault();
+    if (!selectedOpportunityId) return;
+    const file = $('documentFile').files[0];
+    runDocumentOperation(async () => {
+      selectedDocumentId = await uploadOpportunityDocument(selectedOpportunityId, file);
+      $('documentFile').value = '';
+      try {
+        await loadDocuments();
+      } catch (error) {
+        throw new Error(`El documento se guardó, pero no se pudo actualizar la vista. No repitas la carga; actualiza los documentos. ${error.message}`);
+      }
+      setDocumentMessage('Documento adjuntado en SharePoint. Estado: Pendiente.');
+    });
+  });
+
+  $('documentReviewForm').addEventListener('submit', event => {
+    event.preventDefault();
+    const record = opportunityDocuments.find(item => item.Id === selectedDocumentId && item.OportunidadId === selectedOpportunityId);
+    if (!record) return;
+    const state = $('documentState').value;
+    const notes = $('documentNotes').value;
+    runDocumentOperation(async () => {
+      await validateOpportunityDocument(record, state, notes);
+      record.etag = null;
+      try {
+        await loadDocuments();
+      } catch (error) {
+        throw new Error(`La validación se guardó, pero no se pudo actualizar la vista. ${error.message}`);
+      }
+      setDocumentMessage('Validación guardada en SharePoint.');
+    });
+  });
+
+  $('documentList').addEventListener('click', event => {
+    if (!connected || busy) return;
+    const button = event.target.closest('[data-doc-review], [data-doc-download], [data-doc-delete]');
+    if (!button) return;
+    const recordId = Number(button.dataset.docReview || button.dataset.docDownload || button.dataset.docDelete);
+    const record = opportunityDocuments.find(item => item.Id === recordId && item.OportunidadId === selectedOpportunityId);
+    if (!record) return;
+    if (button.hasAttribute('data-doc-review')) {
+      selectedDocumentId = record.Id;
+      setDocumentMessage('');
+      renderDocuments();
+    } else if (button.hasAttribute('data-doc-download')) {
+      runDocumentOperation(() => downloadOpportunityDocument(record));
+    } else if (confirm(`¿Eliminar el documento "${record.Title}" de SharePoint?`)) {
+      runDocumentOperation(async () => {
+        await mutateDocument(record, 'DELETE');
+        opportunityDocuments = opportunityDocuments.filter(item => item.Id !== record.Id);
+        if (selectedDocumentId === record.Id) selectedDocumentId = null;
+        renderDocuments();
+        setDocumentMessage('Documento eliminado de SharePoint.');
+      });
+    }
+  });
+
+  $('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!connected || busy) return;
+    const rawBudget = $('presupuesto').value.trim();
+    const o = {
+      cliente: $('cliente').value.trim(),
+      proyecto: $('proyecto').value.trim(),
+      presupuesto: Number(rawBudget),
+      estado: $('estado').value,
+      fecha: $('fecha').value,
+      asignadoLogin: $('asignado').value
+    };
+    const err = $('error');
+    const showError = msg => { err.textContent = msg; err.classList.remove('hidden'); };
+    if (!/^\d+(\.\d{1,2})?$/.test(rawBudget) || !Number.isFinite(o.presupuesto)) {
+      showError('El presupuesto debe ser un número válido (ej. 15000 o 15000.50).');
+      $('presupuesto').focus();
+      return;
+    }
+    if (!o.cliente || !o.proyecto || !o.fecha || !ESTADOS.includes(o.estado) || !e.target.checkValidity()) {
+      showError('Completa todos los campos.');
+      return;
+    }
+    err.classList.add('hidden');
+    const status = $('status');
+    busy = true;
+    updateControls();
+    status.classList.add('hidden');
+    try {
+      o.asignadoId = await resolveAssignee(o.asignadoLogin);
+      const created = await createOpportunity(o);
+      e.target.reset();
+      $('fecha').value = new Date().toISOString().slice(0, 10);
+      filtro = 'Todos';
+      newId = created.Id;
+      try {
+        await fetchData();
+      } catch (error) {
+        setConnection(`La oportunidad se guardó, pero no se pudo actualizar la vista: ${error.message}`, true);
+      }
+      status.textContent = 'Oportunidad guardada en SharePoint.';
+      status.classList.remove('hidden');
+    } catch (ex) {
+      err.textContent = 'No se pudo enviar: ' + ex.message;
+      err.classList.remove('hidden');
+    } finally {
+      newId = null;
+      busy = false;
+      updateControls();
+    }
+  });
+
+  document.addEventListener('click', e => {
+    const documentButton = e.target.closest('[data-documents]');
+    if (documentButton) {
+      runDocumentOperation(async () => {
+        await selectDocumentOpportunity(Number(documentButton.dataset.documents));
+        $('documentPanel').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
+      });
+      return;
+    }
+    const f = e.target.closest('[data-f]');
+    if (f) { filtro = f.dataset.f; render(); return; }
+    const v = e.target.closest('[data-view]');
+    if (v) { vista = v.dataset.view; localStorage.setItem('vista', vista); render(); return; }
+    const d = e.target.closest('[data-del]');
+    if (d && connected && !busy && confirm('¿Eliminar esta oportunidad de SharePoint?')) {
+      const opportunity = data.find(item => item.id === Number(d.dataset.del));
+      if (!opportunity) return;
+      runOperation(async () => {
+        const linked = await sharePointRequest(`${documentsPath}?$select=Id&$filter=OportunidadId eq ${opportunity.id}&$top=1`);
+        if (linked.value.length) throw new Error('Esta oportunidad tiene documentos asociados. Elimina esos documentos antes de eliminar la oportunidad.');
+        await mutateOpportunity(opportunity, 'DELETE');
+        data = data.filter(item => item.id !== opportunity.id);
+        render();
+        setConnection('Oportunidad eliminada de SharePoint.');
+      });
+    }
+  });
+
+  document.addEventListener('change', e => {
+    const assignee = e.target.closest('[data-assignee]');
+    if (assignee && connected && !busy) {
+      const opportunity = data.find(item => item.id === Number(assignee.dataset.assignee));
+      if (!opportunity) {
+        setConnection('No se encontró la oportunidad. Actualiza el listado.', true);
+        return;
+      }
+      const login = assignee.value;
+      runOperation(async () => {
+        try {
+          const userId = await resolveAssignee(login);
+          await mutateOpportunity(opportunity, 'MERGE', { AsignadoAId: userId });
+        } catch (error) {
+          render();
+          throw error;
+        }
+        opportunity.etag = null;
+        try {
+          await fetchData();
+        } catch (error) {
+          throw new Error(`La asignación se guardó en la oportunidad, pero no se completó la actualización de la web o sus documentos. Pulsa Actualizar. ${error.message}`);
+        }
+        setConnection('Persona asignada guardada y documentos sincronizados en SharePoint.');
+      });
+      return;
+    }
+    if (!e.target.classList.contains('chg') || !connected || busy) return;
+    const o = data.find(x => x.id === Number(e.target.dataset.id));
+    if (!o || !ESTADOS.includes(e.target.value)) return;
+    const estado = e.target.value;
+    runOperation(async () => {
+      try {
+        await mutateOpportunity(o, 'MERGE', { Estado: estado });
+      } catch (error) {
+        render();
+        throw error;
+      }
+      o.estado = estado;
+      o.etag = null;
+      render();
+      setConnection('Estado guardado en SharePoint.');
+      try {
+        await fetchData();
+      } catch (error) {
+        throw new Error(`El estado se guardó, pero no se pudo actualizar la vista: ${error.message}`);
+      }
+    });
+  });
+
+  $('fecha').value = new Date().toISOString().slice(0, 10);
+  $('today').textContent = new Date().toLocaleDateString('es-ES', { dateStyle: 'full' });
+  renderDocuments();
+  render();
+  if (sameOrigin) $('connectBtn').click();
+  else runOperation(async () => {
+    const clientId = $('clientId').value.trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId)) return;
+    await initializeAuthentication(clientId);
+    const result = await auth.handleRedirectPromise();
+    if (result) await finishConnection(result);
+    else if (auth.getActiveAccount()) await finishConnection();
+  });
+</script>
+</body>
+</html>
