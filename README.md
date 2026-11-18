@@ -2,6 +2,8 @@
 
 Aplicacion estatica con lectura, registro, cambio de estado y eliminacion en una lista de SharePoint. No usa datos de ejemplo ni guarda oportunidades en localStorage. Solo recuerda la vista y el ID publico de la aplicacion; MSAL administra la sesion en sessionStorage.
 
+Para construir una aplicacion equivalente desde cero en otro sitio, usa la [guia de recreacion con prompts para GitHub Copilot](./GUIA-RECREAR-CON-COPILOT.md). La unica entrada editable de los prompts es la URL del sitio; los identificadores de SharePoint y Entra se obtienen durante el aprovisionamiento autorizado.
+
 ## Lista de SharePoint
 
 - Sitio: https://m365x30064847.sharepoint.com/sites/demo-ia-with-copilot
